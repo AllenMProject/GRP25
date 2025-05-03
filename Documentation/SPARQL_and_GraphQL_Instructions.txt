@@ -1,0 +1,124 @@
+Graph-Theoretic Materials Database  
+SPARQL & GraphQL Service Instructions  
+======================================
+
+1. Prerequisites  
+---------------  
+• Python 3.9+ environment (e.g. conda “erau_graph”)  
+• Dependencies installed:  
+  - rdflib, Flask, flask-graphql, graphene  
+  - ijson, networkx, pymatgen, rdkit, etc.  
+• Your project root should contain:  
+  - scripts/kg_service.py  
+  - scripts/export_knowledgeGraphs.py  
+  - data/graphs/*.pkl  
+  - exports/KnowledgeGraphs/materials.ttl (or will be generated)
+
+-------------------------------------------------------------------------------
+
+2. Generating the TTL Knowledge Graph  
+-------------------------------------  
+Run once (or whenever your pickles change) to produce `materials.ttl`:
+
+    cd /path/to/Graph-Theoretic Materials Database Pipeline
+    conda activate erau_graph
+    python scripts/kg_service.py --export-kg
+
+▶ This invokes `export_knowledgeGraphs.py`, loads your pickled graphs,  
+  and writes `exports/KnowledgeGraphs/materials.ttl` in Turtle format.
+
+-------------------------------------------------------------------------------
+
+3. Starting the SPARQL & GraphQL Server  
+---------------------------------------  
+Once you have a valid TTL:
+
+    python scripts/kg_service.py --serve
+
+– The service will bind to **0.0.0.0:5000**  
+– Endpoints published:  
+    • SPARQL: http://127.0.0.1:5000/sparql  
+    • GraphQL: http://127.0.0.1:5000/graphql  
+
+You can keep this running in your terminal.  
+
+-------------------------------------------------------------------------------
+
+4. GraphQL Usage  
+----------------  
+
+1. In your browser, navigate to:  
+       http://127.0.0.1:5000/graphql  
+
+2. The built‑in GraphiQL IDE will appear.  
+
+3. **Example Query** (fetch first 3 materials with atoms & bonds):
+   
+       query {
+         materials(limit: 3) {
+           uri
+           formula
+           source
+           atoms {
+             uri
+             element
+             isDummy
+           }
+           bonds {
+             uri
+             order
+           }
+         }
+       }
+
+4. Click “▶” (Execute) to run.  
+5. Results appear in the right‑hand pane as JSON.
+
+-------------------------------------------------------------------------------
+
+5. SPARQL Usage  
+---------------  
+
+You can query the same TTL via HTTP GET or POST.  
+
+**A. Browser / URL**  
+– URL‑encode your SPARQL query after `?query=`:
+
+    http://127.0.0.1:5000/sparql?
+      query=PREFIX%20mt%3A%20%3Chttp%3A//materialsdb.org/schema%23%3E%20
+            SELECT%20%3Fm%20%3Ff%20%3Fs%20WHERE%20%7B
+              %3Fm%20a%20mt%3AMaterial%20%3B
+                  mt%3Aformula%20%3Ff%20%3B
+                  mt%3Asource%20%3Fs%20.
+            %7D%20LIMIT%203
+
+– Paste into browser’s address bar (no GUI, returns raw JSON).
+
+**B. curl Example**
+
+    curl -G http://127.0.0.1:5000/sparql \
+         --data-urlencode "query=PREFIX mt: <http://materialsdb.org/schema#> \
+    SELECT ?m ?f ?s WHERE { \
+      ?m a mt:Material ; \
+         mt:formula ?f ; \
+         mt:source ?s . \
+    } LIMIT 3"
+
+**C. POST Form**
+
+    curl -X POST http://127.0.0.1:5000/sparql \
+         -d 'query=PREFIX mt: <http://materialsdb.org/schema#> \
+    SELECT ?m WHERE { ?m a mt:Molecule . } LIMIT 5'
+
+The response is a JSON array of bindings.
+
+-------------------------------------------------------------------------------
+
+6. Tips & Troubleshooting  
+-------------------------  
+• If you see “404 Not Found” on `/sparql` or `/graphql`, confirm you started with `--serve`.  
+• To refresh data, stop the server, re‑run `--export-kg`, then `--serve` again.  
+• SPARQL queries must be URL‑encoded in GET; use tools (Postman, curl) for convenience.  
+• GraphQL errors like “… not an iterator” usually mean your resolver returned a non‑list—ensure `resolve_…` yields a Python list.  
+
+Enjoy exploring your materials knowledge graph!  

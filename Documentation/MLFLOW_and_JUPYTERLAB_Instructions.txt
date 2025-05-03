@@ -1,0 +1,147 @@
+MLFLOW & JUPYTERLAB INSTRUCTIONS
+================================
+
+This document guides new users through setting up and using MLflow for experiment tracking 
+and JupyterLab for interactive exploration within the Materials Graph-Theoretic Pipeline.
+
+---------------------------------------------------------------------------
+
+1. ENVIRONMENT SETUP
+--------------------
+
+1.1. Clone the repository:
+     git clone <your-repo-url>
+     cd <repo-directory>
+
+1.2. Create & activate your conda environment:
+     conda create -n erau_graph python=3.9 -y
+     conda activate erau_graph
+
+1.3. Install dependencies:
+     pip install -r requirements.txt
+     # Ensure MLflow, JupyterLab, PyVis, RDFlib, NetworkX, etc. are included.
+
+---------------------------------------------------------------------------
+
+2. MLflow USAGE
+---------------
+
+2.1. Configure MLflow experiment
+     In your pipeline entry-point (e.g. run_pipeline.py), wrap your logic:
+
+       import mlflow
+
+       mlflow.set_experiment("materials-graph-pipeline")
+       with mlflow.start_run():
+           mlflow.log_param("source_json", str(MASTER_JSON))
+           # ... build graphs, export KG, export PyG ...
+           mlflow.log_metric("n_materials", count_materials)
+           mlflow.log_artifact("data/graphs/mol_graphs.pkl")
+           mlflow.log_artifact("data/kg/materials.ttl")
+           mlflow.log_artifact("data/pyg/materials.pt")
+
+2.2. Launch MLflow UI
+     From project root:
+       mlflow ui --backend-store-uri ./mlruns --port 5001
+     Open your browser at:
+       http://127.0.0.1:5001
+
+2.3. Run your pipeline
+     python run_pipeline.py
+     Each invocation will create a new “run” you can inspect in the UI:
+       – Parameters tab
+       – Metrics tab
+       – Artifacts tab (download pickles, TTL, .pt files)
+
+2.4. Compare runs
+     In the MLflow UI, select multiple runs to overlay metrics and compare parameters.
+
+---------------------------------------------------------------------------
+
+3. JUPYTERLAB USAGE
+--------------------
+
+3.1. Launch JupyterLab
+     From project root with your `erau_graph` environment active:
+       jupyter lab --port 8888
+     Open your browser at:
+       http://127.0.0.1:8888
+
+3.2. Create a new notebook in `notebooks/`
+
+3.3. Example notebook cells
+     ----------------------------------------
+     # 1) Import and configure MLflow client
+     from mlflow.tracking import MlflowClient
+     import pickle, networkx as nx
+     from pyvis.network import Network
+
+     client = MlflowClient()
+     exp = client.get_experiment_by_name("materials-graph-pipeline")
+     runs = client.search_runs([exp.experiment_id], order_by=["start_time DESC"], max_results=1)
+     run_id = runs[0].info.run_id
+
+     # 2) Download artifact
+     local_pick = client.download_artifacts(run_id, "data/graphs/mol_graphs.pkl", ".")
+     mol_graphs = pickle.load(open(local_pick, "rb"))
+
+     # 3) Sanity check: count dummy-atom materials
+     with_dummy = [(mid,G) for mid,G in mol_graphs if any(d for _,d in G.nodes(data=True) if d.get("is_dummy"))]
+     print(f"{len(with_dummy)} / {len(mol_graphs)} materials have dummy nodes")
+
+     # 4) Visualize a sample graph with PyVis
+     mid, G = mol_graphs[0]
+     net = Network(notebook=True)
+     for n,attrs in G.nodes(data=True):
+         net.add_node(n, label=attrs["element"],
+                      color='red' if attrs.get("is_dummy") else 'lightblue')
+     for u,v in G.edges():
+         net.add_edge(u, v)
+     net.show("sample.html")
+
+3.4. SPARQL prototyping in notebook
+     ----------------------------------------
+     from rdflib import Graph
+     g = Graph()
+     g.parse("data/kg/materials.ttl", format="turtle")
+
+     q = '''
+     PREFIX mt: <http://materialsdb.org/schema#>
+     SELECT ?m (COUNT(?a) AS ?numSites) WHERE {
+       ?m a mt:Crystal .
+       ?m mt:hasSite ?a .
+     } GROUP BY ?m LIMIT 10
+     '''
+     for row in g.query(q):
+         print(row)
+
+3.5. GraphQL prototyping in notebook
+     ----------------------------------------
+     import requests
+
+     url = "http://127.0.0.1:5000/graphql"
+     query = """
+     query {
+       materials(limit:5) {
+         uri
+         formula
+         atoms { element }
+       }
+     }
+     """
+     resp = requests.post(url, json={'query': query})
+     print(resp.json())
+
+---------------------------------------------------------------------------
+
+4. BEST PRACTICES
+-----------------
+
+• Always log key parameters & metrics in MLflow for reproducibility.
+• Tag runs in MLflow with descriptive names or tags when experimenting.
+• Use JupyterLab to iteratively explore artifacts—do not overwrite your pickles.
+• Commit your notebooks (with outputs cleared) alongside your scripts to GitHub.
+• If you adjust the pipeline (e.g. change cutoff distance), bump a MLflow param.
+
+Enjoy reproducible, trackable, and interactive development of your
+Materials Graph-Theoretic Pipeline!

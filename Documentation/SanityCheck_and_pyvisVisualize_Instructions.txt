@@ -1,0 +1,101 @@
+VISUALIZE\_PYVIS AND SANITY\_CHECK INSTRUCTION MANUAL
+
+Prerequisites
+
+>  Python 3.7 or higher
+>  A project directory laid out as:
+project\_root/
+data/
+graphs/
+mol\_graphs.pkl
+crystal\_graphs.pkl
+scripts/
+sanity\_check.py
+visualize\_pyvis.py
+>  Dependencies installed in your active environment:
+pip install networkx pyvis ijson rdflib flask flask‑graphql graphene neo4j pandas rdkit pymatgen
+
+1. SANITY\_CHECK.PY
+
+---
+
+Purpose:
+Quickly inspect your molecule and crystal pickles to see node/edge counts.
+
+Location:
+scripts/sanity\_check.py
+
+Usage:
+From the project root, run:
+python scripts/sanity\_check.py
+
+Behavior:
+>  If mol\_graphs.pkl is missing or empty, prints “Molecules: ✗ no entries found, skipping.”
+>  If crystal\_graphs.pkl is missing or empty, prints “Crystals: ✗ no entries found, skipping.”
+>  Otherwise, for each set it reports:
+minimum, average, and maximum node counts
+minimum, average, and maximum edge counts
+
+Example output when both are present:
+Molecules:
+nodes:  min=1, avg=10, max=50
+edges:  min=0, avg=9, max=49
+Crystals:
+nodes:  min=2, avg=20, max=200
+edges:  min=1, avg=30, max=300
+
+2. VISUALIZE\_PYVIS.PY
+
+---
+
+Purpose:
+Render your first (or selected) molecule and/or crystal graphs as interactive HTML files.
+
+Location:
+scripts/visualize\_pyvis.py
+
+Usage:
+From the project root, run one of:
+
+```
+# Show all molecule graphs
+python scripts/visualize_pyvis.py --type molecules
+
+# Show the 3rd crystal graph only
+python scripts/visualize_pyvis.py --type crystals --index 2
+
+# Show every graph (both molecules and crystals)
+python scripts/visualize_pyvis.py --type all
+```
+
+Options:
+\--type     \[molecules|crystals|all]   default: molecules
+which set(s) of graphs to visualize
+\--index    integer (zero‑based)       default: none
+if provided, visualizes only that index within the chosen set
+
+What it does:
+>  Loads mol\_graphs.pkl and crystal\_graphs.pkl
+>  For each selected graph it creates an HTML file named:
+molecule\_\<material\_id>.html
+or
+crystal\_\<material\_id>.html
+>  Nodes are colored (#FFCCCC for dummies, #CCCCFF for real atoms/sites)
+>  Hover over nodes/edges to see full attribute dictionaries
+
+Example run and result:
+
+> python scripts/visualize\_pyvis.py --type crystals
+> ⚠️  No molecule graphs found.
+> 🔍 Written crystal\_mp-570922.html
+> 🔍 Written crystal\_mp-570923.html
+> …
+
+Then open crystal\_mp-570922.html in your browser to interactively explore that network.
+
+>  Ensure the “data/graphs” directory contains up-to-date pickles produced by build\_graphs.py
+>  If you add more graphs or regenerate them, rerun visualize\_pyvis.py to get fresh HTMLs
+>  These HTML files are self‑contained and can be shared or checked into GitHub releases
+>  If you encounter errors about missing modules, double‑check that you `pip install pyvis networkx` (and other deps)
+
+End of Manual

@@ -1,0 +1,39 @@
+1. Sanity Check
+   python scripts/sanity_check.py
+   - Reports min/avg/max nodes & edges in molecules & crystals.
+   - Skips if no entries.
+
+2. Neo4j Verification
+   • In Neo4j Browser:
+       MATCH (m:Material) RETURN count(m);
+       MATCH (a:Atom) RETURN count(a);
+       MATCH ()-[r:BOND]->() RETURN count(r);
+   • For knowledge graph:
+       :schema
+       MATCH (n) RETURN labels(n) LIMIT 5;
+
+3. SPARQL
+   • Query via HTTP:
+       curl 'http://127.0.0.1:5000/sparql?query=<URL-ENCODED-SPARQL>'
+   • Example:
+       SELECT ?m ?f WHERE {
+         ?m a mt:Material; mt:formula ?f .
+       } LIMIT 10
+
+4. GraphQL
+   • In browser → http://127.0.0.1:5000/graphql
+   • Example:
+       query {
+         materials(limit:5) {
+           uri formula source
+         }
+       }
+
+5. PyVis Visuals
+   python scripts/visualize_pyvis.py --type molecules
+   python scripts/visualize_pyvis.py --type crystals --index 0
+   → HTML files in html_maps/
+
+6. Exported Files
+   • JSON/CSV in exports/PropertyGraphs
+   • TTL + .pt in exports/KnowledgeGraphs

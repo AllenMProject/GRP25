@@ -1,0 +1,62 @@
+Overview:  Graph-Theory Materials Database Pipeline
+
+0) Data Sources
+   • Materials Project API
+   • PubChem API
+   • chEBI SDF files
+   • Any other custom JSON/SDF API
+
+1) Data Ingestion (scripts/etl_*.py)
+   • Fetch raw data from each external source
+   • Dump into data/raw/*.json or *.sdf
+
+2) Data Standardization (scripts/standardize.py)
+   • Parse raw files
+   • Clean, normalize, unify field names
+   • Produce single data/cleaned/master.json
+
+3) Build Property-Graphs (scripts/build_graphs.py)
+   • Stream data/cleaned/master.json with ijson
+   • For each record:
+       – Molecules → RDKit SMILES → atom/bond graph
+       – Crystals  → pymatgen Structure → site/contact graph
+   • Mark dummy atoms as attachment points
+   • Dump pickles:
+       data/graphs/mol_graphs.pkl
+       data/graphs/crystal_graphs.pkl
+       data/graphs/with_dummies.pkl
+
+4) Export Property-Graphs (scripts/export_propertyGraphs.py)
+   • JSON: props + node & edge lists
+   • CSV: nodes.csv, edges.csv (with props)
+   • Plain edgelists (*.txt)
+   • PyG .pt files for GNN training:
+       exports/PropertyGraphs/mol_graphs.pt
+       exports/PropertyGraphs/crystal_graphs.pt
+
+5) Export Knowledge-Graphs (scripts/export_knowledgeGraphs.py)
+   • Load pickles
+   • Build RDFLib graph:
+       – MT:Material, MT:Molecule, MT:Crystal
+       – MT:Atom, MT:Site, MT:Bond, MT:Contact
+       – Dummy atoms → mt:AttachmentPoint, mt:isDummy flag
+   • Serialize to Turtle:
+       exports/KnowledgeGraphs/materials.ttl
+   • Produce GNN .pt as well:
+       exports/KnowledgeGraphs/kg_mol_graphs.pt
+       exports/KnowledgeGraphs/kg_crystal_graphs.pt
+
+6) Neo4j Ingestion
+   • scripts/neo4j_load_pg.py → load property-graphs
+   • scripts/neo4j_load_kg.py → import TTL via n10s plugin
+
+7) Service Endpoints (scripts/kg_service.py)
+   • `--export-kg` to rebuild TTL
+   • `--serve` to launch Flask:
+       – SPARQL at /sparql
+       – GraphiQL at /graphql
+
+8) Utilities
+   • sanity_check.py → graph‐size statistics
+   • visualize_pyvis.py → HTML network visualizations
+   • mlflow + JupyterLab for interactive experiments
