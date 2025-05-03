@@ -1,0 +1,29 @@
+# Makefile — just create / destroy the conda env
+# ------------------------------------------------
+# Usage:
+#   make env      ← create & populate conda env
+#   make install  ← pip-install into already-active env
+#   make clean    ← remove the conda env
+
+ENV_NAME   := erau_graph
+PYTHON_VER := 3.9
+CHANNEL    := -c conda-forge
+
+.PHONY: env install clean
+
+env:
+	@echo "⏳ Creating conda env '$(ENV_NAME)' with Python $(PYTHON_VER)…"
+	conda create -n $(ENV_NAME) python=$(PYTHON_VER) $(CHANNEL) rdkit -y
+	@echo "✔️  Base env ready. Installing everything else via pip…"
+	conda run -n $(ENV_NAME) pip install -r requirements.txt
+	@echo "✅ Environment '$(ENV_NAME)' is all set."
+
+install:
+	@echo "⏳ Installing Python dependencies into current env…"
+	pip install -r requirements.txt
+	@echo "✅ pip install complete."
+
+clean:
+	@echo "🗑️  Removing conda env '$(ENV_NAME)'…"
+	conda env remove -n $(ENV_NAME) -y
+	@echo "✅ Environment removed."

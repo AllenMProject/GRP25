@@ -1,0 +1,33 @@
+# Python version
+python>=3.9
+
+# Core data processing
+pandas
+ijson
+networkx
+pymatgen
+
+# RDKit (install via conda-forge)
+#   conda install -c conda-forge rdkit
+
+# Graph databases & SPARQL
+neo4j                # Neo4j Python driver
+rdflib
+
+# Web service & APIs
+flask
+Flask-GraphQL
+graphene
+
+# Visualization
+pyvis
+
+# Machine learning & GNN
+torch
+torch-geometric
+
+# Experiment tracking
+mlflow
+
+# Interactive notebooks
+jupyterlab

@@ -1,0 +1,142 @@
+neo4j_instruction.txt
+
+===============================================================================
+Neo4j Property‑Graph Loading & Querying Guide
+===============================================================================
+
+OVERVIEW
+--------
+This guide shows you how to load your material property‑graphs (molecules + crystals)
+into Neo4j, and gives a set of common Cypher queries for exploration.
+
+CONTENTS
+ 1. Prerequisites
+ 2. Loading the graphs
+ 3. What’s in the graph?  (nodes & relationships)
+ 4. Example Cypher queries
+    • List all materials
+    • List only molecules
+    • List only crystals
+    • Retrieve full node lists (just IDs)
+    • Visualize the graph structure
+-------------------------------------------------------------------------------
+
+1. Prerequisites
+----------------
+• Neo4j 5.x running locally (bolt://localhost:7687)  
+• Python env with neo4j-driver installed  
+• Your `mol_graphs.pkl` and `crystal_graphs.pkl` in `data/graphs/`  
+• Environment variables (or `scripts/getenv.py`) set:
+      NEO4J_URI  bolt://localhost:7687
+      NEO4J_USER neo4j
+      NEO4J_PW   <your-password>
+
+2. Loading the graphs
+---------------------
+From your project root, simply run:
+
+    python scripts/neo4j_load_pg.py
+
+This will:
+
+  • MERGE each material as a `:Material` node, with subtype `:Molecule` or `:Crystal`
+  • UNWIND & MERGE each atom/site as `:Atom`/`:Site` nodes
+  • CREATE `:HAS_ATOM` or `:HAS_SITE` relationships
+  • CREATE `:BOND` relationships between atom→atom or site→site
+
+On success you’ll see:
+
+    ✅ Property graphs loaded into Neo4j.
+
+3. What’s in the graph?
+------------------------
+Nodes:
+  • (m:Material:Molecule { id, formula, source, … })  
+  • (m:Material:Crystal  { id, formula, source, … })  
+  • (a:Atom { mat_id, idx, element, … })  
+  • (s:Site { mat_id, idx, element, frac_coords, … })
+
+Relationships:
+  • (m)-[:HAS_ATOM]->(a)  
+  • (m)-[:HAS_SITE]->(s)  
+  • (a)-[:BOND { order, source }]->(a2)  
+  • (s)-[:BOND { distance, source }]->(s2)
+
+4. Example Cypher queries
+--------------------------
+
+A) List all materials (both molecules & crystals)
+   ------------------------------------------------
+   MATCH (m:Material)
+   RETURN m.id      AS materialID,
+          labels(m) AS labels,
+          m.formula AS formula,
+          m.source  AS source
+   ORDER BY materialID
+   LIMIT 50;
+
+   _Use the “Table” view to see IDs, labels, and key props._
+
+B) List only molecules
+   ---------------------
+   MATCH (m:Molecule)
+   RETURN m.id      AS moleculeID,
+          m.formula AS formula
+   ORDER BY moleculeID
+   LIMIT 50;
+
+C) List only crystals
+   --------------------
+   MATCH (c:Crystal)
+   RETURN c.id      AS crystalID,
+          c.formula AS formula
+   ORDER BY crystalID
+   LIMIT 50;
+
+D) Retrieve just lists of IDs
+   ----------------------------
+   // All Materials:
+   MATCH (m:Material)
+   RETURN collect(m.id) AS allMaterials;
+
+   // All Molecules:
+   MATCH (m:Molecule)
+   RETURN collect(m.id) AS allMolecules;
+
+   // All Crystals:
+   MATCH (c:Crystal)
+   RETURN collect(c.id) AS allCrystals;
+
+E) Visualize the atom‑bond graphs
+   --------------------------------
+   // For a single molecule (e.g. “mp‑1009127”):
+   MATCH (m:Molecule { id:'mp-1009127' })
+         -[:HAS_ATOM]->(a:Atom)-[r:BOND]->(b:Atom)
+   RETURN m, a, r, b
+   LIMIT 200;
+
+   // For all molecules (caution: large!)
+   MATCH (m:Molecule)-[:HAS_ATOM]->(a:Atom)-[r:BOND]->(b:Atom)
+   RETURN m, a, r, b
+   LIMIT 1000;
+
+   _Switch to the “Graph” view to see the network of atoms & bonds._
+
+F) Visualize the site‑contact graphs
+   -----------------------------------
+   // For a single crystal:
+   MATCH (c:Crystal { id:'mp-1009127' })
+         -[:HAS_SITE]->(s1:Site)-[r:BOND]->(s2:Site)
+   RETURN c, s1, r, s2
+   LIMIT 200;
+
+   // For all crystals:
+   MATCH (c:Crystal)-[:HAS_SITE]->(s1:Site)-[r:BOND]->(s2:Site)
+   RETURN c, s1, r, s2
+   LIMIT 1000;
+
+   _Again, use “Graph” view to inspect the coordination network._
+
+-------------------------------------------------------------------------------
+That’s it—copy/paste these queries into the Neo4j Browser, choose **Table** or **Graph**
+tabs to inspect your data. Happy exploring!

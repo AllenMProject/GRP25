@@ -1,0 +1,30 @@
+After pipeline completes:
+
+1) Property-Graph Outputs
+   exports/PropertyGraphs/
+   • materials_graphs.json
+   • nodes.csv, edges.csv
+   • <mid>_edgelist.txt
+   • mol_graphs.pt
+   • crystal_graphs.pt
+
+2) Knowledge-Graph Outputs
+   exports/KnowledgeGraphs/
+   • materials.ttl
+   • kg_mol_graphs.pt
+   • kg_crystal_graphs.pt
+
+3) Loaded in Neo4j
+   • Browse nodes & relationships in Neo4j Browser
+
+4) API Endpoints
+   • SPARQL:  http://127.0.0.1:5000/sparql
+   • GraphQL: http://127.0.0.1:5000/graphql
+
+5) Visualizations
+   • html_maps/molecule_*.html
+   • html_maps/crystal_*.html
+
+6) Experiment Tracking
+   • mlflow server → http://127.0.0.1:5000
+   • Inspect runs, view .pt artifacts, track parameters

@@ -1,0 +1,25 @@
+GT-MD Getting Started Walkthrough
+
+1. Clone the repo:
+     git clone https://github.com/your-org/graph-theory-materials-db.git
+     cd graph-theory-materials-db
+
+2. Create and activate a conda env:
+     conda create -n erau_graph python=3.9
+     conda activate erau_graph
+
+3. Install dependencies:
+     conda install -c conda-forge rdkit
+     pip install -r Requirements.txt
+
+4. (Optional) Configure Neo4j creds:
+     Create scripts/getenv.py with:
+       NEO4J_URI  = 'bolt://localhost:7687'
+       NEO4J_USER = 'neo4j'
+       NEO4J_PW   = 'your_password'
+
+5. Verify packages:
+     python -c "import rdkit, pandas, networkx, pymatgen, rdflib, flask, graphene, torch, mlflow, pyvis, jupyterlab"
+
+You're now ready to run the pipeline!
+
