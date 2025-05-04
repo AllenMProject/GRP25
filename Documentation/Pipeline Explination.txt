@@ -1,62 +1,163 @@
-Overview:  Graph-Theory Materials Database Pipeline
+===============================================================================
+                   Graph‑Theory Materials Database Pipeline
+===============================================================================
 
-0) Data Sources
-   • Materials Project API
-   • PubChem API
-   • chEBI SDF files
-   • Any other custom JSON/SDF API
+This document describes the end‑to‑end workflow for GT‑DB.  It shows the REQUIRED
+stages (the “mainline pipeline”) and the OPTIONAL utilities you may invoke at any
+time to inspect, serve, or extend the data.  Before you begin, make sure you have:
 
-1) Data Ingestion (scripts/etl_*.py)
-   • Fetch raw data from each external source
-   • Dump into data/raw/*.json or *.sdf
+  •  One or more data sources (either API credentials or local export files):
+     – Materials Project API key (MAPI_KEY)
+     – PubChem REST access or PubChem CID list
+     – ChEBI SDF or JSON dump
+     – …or any other custom JSON/SDF files you wish to ingest
 
-2) Data Standardization (scripts/standardize.py)
-   • Parse raw files
-   • Clean, normalize, unify field names
-   • Produce single data/cleaned/master.json
+  •  A valid “.env” (or exported shell variables) in the project root:
+       MAPI_KEY=your_materials_project_api_key
+       export NEO4J_URI=bolt://localhost:7687
+       export NEO4J_USER=neo4j
+       export NEO4J_PW=your_neo4j_password
 
-3) Build Property-Graphs (scripts/build_graphs.py)
-   • Stream data/cleaned/master.json with ijson
-   • For each record:
-       – Molecules → RDKit SMILES → atom/bond graph
-       – Crystals  → pymatgen Structure → site/contact graph
-   • Mark dummy atoms as attachment points
-   • Dump pickles:
-       data/graphs/mol_graphs.pkl
-       data/graphs/crystal_graphs.pkl
-       data/graphs/with_dummies.pkl
+  •  A working “erau_graph” conda environment (or active virtualenv) with
+     all Python deps installed (see Makefile targets `make env` / `make install`).
 
-4) Export Property-Graphs (scripts/export_propertyGraphs.py)
-   • JSON: props + node & edge lists
-   • CSV: nodes.csv, edges.csv (with props)
-   • Plain edgelists (*.txt)
-   • PyG .pt files for GNN training:
-       exports/PropertyGraphs/mol_graphs.pt
-       exports/PropertyGraphs/crystal_graphs.pt
+───────────────────────────────────────────────────────────────────────────────
+MAINLINE PIPELINE
+───────────────────────────────────────────────────────────────────────────────
 
-5) Export Knowledge-Graphs (scripts/export_knowledgeGraphs.py)
-   • Load pickles
-   • Build RDFLib graph:
-       – MT:Material, MT:Molecule, MT:Crystal
-       – MT:Atom, MT:Site, MT:Bond, MT:Contact
-       – Dummy atoms → mt:AttachmentPoint, mt:isDummy flag
-   • Serialize to Turtle:
-       exports/KnowledgeGraphs/materials.ttl
-   • Produce GNN .pt as well:
-       exports/KnowledgeGraphs/kg_mol_graphs.pt
-       exports/KnowledgeGraphs/kg_crystal_graphs.pt
+1) Data Ingestion
+   ──────────────
+   Fetch raw records from each external source and dump into data/raw/
+   • scripts/data_ingest_mp.py      ← Materials Project (requires MAPI_KEY)
+   • scripts/data_ingest_pubchem.py ← PubChem API or CID list
+   • scripts/data_ingest_chebi.py   ← ChEBI SDF/JSON
+   • scripts/data_ingest_example.py ← (optional example manifest)
 
-6) Neo4j Ingestion
-   • scripts/neo4j_load_pg.py → load property-graphs
-   • scripts/neo4j_load_kg.py → import TTL via n10s plugin
+   Usage:
+     make ingest
+     → invokes each of the above in turn.  Raw JSON/SDF files land in data/raw/
 
-7) Service Endpoints (scripts/kg_service.py)
-   • `--export-kg` to rebuild TTL
-   • `--serve` to launch Flask:
-       – SPARQL at /sparql
-       – GraphiQL at /graphql
+2) Data Standardization
+   ─────────────────────
+   Parse and normalize all raw files into a single clean JSON
+   • scripts/standardize.py
 
-8) Utilities
-   • sanity_check.py → graph‐size statistics
-   • visualize_pyvis.py → HTML network visualizations
-   • mlflow + JupyterLab for interactive experiments
+   Output:
+     data/cleaned/master.json
+
+   Usage:
+     make standardize
+
+3) Build Property‑Graphs
+   ───────────────────────
+   Stream the cleaned master.json, convert each record into a NetworkX graph
+     – Molecules: RDKit SMILES → atom/bond graph
+     – Crystals:  pymatgen Structure → site/contact graph
+     – Dummy atoms marked for later use
+
+   Scripts:
+     scripts/build_graphs.py
+
+   Output pickles:
+     data/graphs/mol_graphs.pkl
+     data/graphs/crystal_graphs.pkl
+     data/graphs/with_dummies.pkl
+
+   Usage:
+     make build
+
+4) Export Property‑Graphs
+   ────────────────────────
+   Serialize the pickled graphs into formats suitable for general use and ML
+     • JSON:   exports/PropertyGraphs/materials_graphs.json
+     • CSV:    exports/PropertyGraphs/nodes.csv, edges.csv
+     • Edgelist text: *.txt
+     • PyG .pt: exports/PropertyGraphs/mol_graphs.pt
+                exports/PropertyGraphs/crystal_graphs.pt
+
+   Script:
+     scripts/export_propertyGraphs.py
+
+   Usage:
+     make export-prop
+
+5) Export Knowledge‑Graphs
+   ─────────────────────────
+   Build an RDF/OWL knowledge graph from the same pickles, and also
+   produce GNN‑ready .pt files for the semantic variant
+
+   • TTL (Turtle):  exports/KnowledgeGraphs/materials.ttl
+   • PyG .pt:       exports/KnowledgeGraphs/kg_mol_graphs.pt
+                    exports/KnowledgeGraphs/kg_crystal_graphs.pt
+
+   Script:
+     scripts/export_knowledgeGraphs.py
+
+   Usage:
+     make export-kg
+
+6) MLflow Tracking (optional)
+   ─────────────────────────────
+   Log this pipeline run (code version, data counts, artifacts) into MLflow
+
+   Script:
+     scripts/mlflow_track.py
+
+   Usage:
+     make mlflow-track
+
+7) “make pipeline”   ← runs steps 1 → 6 in order
+
+───────────────────────────────────────────────────────────────────────────────
+OPTIONAL UTILITIES
+───────────────────────────────────────────────────────────────────────────────
+
+• Sanity Check
+  scripts/sanityCheck.py
+  → Print node/edge statistics for graphs (min/avg/max etc.)
+  Usage: make sanity
+
+• HTML Visualizations (PyVis)
+  scripts/visualize_pyvis.py --type [molecules|crystals|all] [--index N]
+  → Generate interactive HTML maps under “html maps/”
+  Usage: make vis
+
+• Neo4j Ingestion (property graphs)
+  scripts/neo4j_load_pg.py
+  → Load pickles into Neo4j as a property graph
+  Usage: make neo4j-pg
+
+• Neo4j Ingestion (knowledge graphs)
+  scripts/neo4j_load_kg.py
+  → Import TTL into Neo4j via the n10s plugin
+  Usage: make neo4j-kg
+
+• KG Service (Flask SPARQL + GraphQL)
+  scripts/kg_service.py
+    – To regenerate materials.ttl:
+        python scripts/kg_service.py --export-kg
+    – To launch the HTTP API:
+        python scripts/kg_service.py --serve
+
+  In Makefile:
+    make export-kg-service
+    make serve-server
+
+  Then point your browser at:
+    http://127.0.0.1:5000/graphql   (GraphiQL UI)
+    http://127.0.0.1:5000/sparql     (SPARQL endpoint)
+
+───────────────────────────────────────────────────────────────────────────────
+NOTES & TIPS
+───────────────────────────────────────────────────────────────────────────────
+
+•  You may skip steps 1–3 if you already have the raw “.json” or the pickle files.
+•  The only truly “required” outputs are the pickles under data/graphs/ and the
+   export files under exports/.  All other services (Neo4j, Flask, etc.) are
+   optional ways to view or query the same underlying graph data.
+•  If you encounter missing API keys or credentials, be sure to `source .env`
+   (or export them in your shell) before running any make target.
+•  Custom data sources can be added by creating a matching
+   scripts/data_ingest_<your_source>.py that dumps into data/raw/.
+
+===============================================================================

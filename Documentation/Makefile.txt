@@ -1,15 +1,52 @@
-# Makefile — just create / destroy the conda env
-# ------------------------------------------------
+##############################################################################
+# Makefile — environment setup and pipeline orchestration
+#
+# Before you run any of these targets, create a file named ".env" in the
+# project root (or export these variables in your shell). The .env must contain:
+#
+#   # Your Materials Project API key (sign up at materialsproject.org)
+#   MAPI_KEY=vW8JNEA7oP1DvlUy72cBAEjdCJk4aCPK   # ← replace with your own key
+#
+#   # Neo4j credentials (used by neo4j_load_pg.py & neo4j_load_kg.py)
+#   export NEO4J_URI=bolt://localhost:7687
+#   export NEO4J_USER=neo4j           # ← or your own Neo4j username
+#   export NEO4J_PW=neo4jPass         # ← or your own Neo4j password
+#
+# Load them in Bash via:
+#   source .env
+##############################################################################
+
+# -------------------------------------------------------
 # Usage:
-#   make env      ← create & populate conda env
-#   make install  ← pip-install into already-active env
-#   make clean    ← remove the conda env
+#   make env             ← create & populate conda env
+#   make install         ← pip-install into already-active env
+#   make clean           ← remove the conda env
+#
+#   make ingest          ← run all data_ingest_*.py (requires MAPI_KEY)
+#   make standardize     ← run standardize.py
+#   make build           ← run build_graphs.py
+#   make export-prop     ← run export_propertyGraphs.py
+#   make export-kg       ← run export_knowledgeGraphs.py
+#   make mlflow-track    ← run mlflow_track.py
+#   make pipeline        ← run steps ingest → export-kg → mlflow-track
+#
+#   make sanity          ← run sanity_check.py
+#   make vis             ← run visualize_pyvis.py --type all
+#   make neo4j-pg        ← load property‑graphs into Neo4j (requires NEO4J_*)
+#   make neo4j-kg        ← load TTL into Neo4j via n10s (requires NEO4J_*)
+#   make serve           ← launch KG Flask service (see notes below)
+# -------------------------------------------------------
 
 ENV_NAME   := erau_graph
 PYTHON_VER := 3.9
 CHANNEL    := -c conda-forge
+PY         := conda run -n $(ENV_NAME) python
 
-.PHONY: env install clean
+.PHONY: env install clean \
+        ingest standardize build export-prop export-kg mlflow-track pipeline \
+        sanity vis neo4j-pg neo4j-kg serve export-kg-service
+
+# ─── Environment ─────────────────────────────────────────────────────────
 
 env:
 	@echo "⏳ Creating conda env '$(ENV_NAME)' with Python $(PYTHON_VER)…"
@@ -27,3 +64,81 @@ clean:
 	@echo "🗑️  Removing conda env '$(ENV_NAME)'…"
 	conda env remove -n $(ENV_NAME) -y
 	@echo "✅ Environment removed."
+
+# ─── Main Pipeline ───────────────────────────────────────────────────────
+
+ingest:
+	@# Fail early if MAPI_KEY is not set
+	@test -n "$(MAPI_KEY)" || (echo "❌ Error: MAPI_KEY not set. source .env" >&2; exit 1)
+	@echo "⏳ Running all data_ingest_*.py…"
+	$(PY) scripts/data_ingest_mp.py
+	$(PY) scripts/data_ingest_pubchem.py
+	$(PY) scripts/data_ingest_chebi.py
+	@echo "✅ Data ingestion complete."
+
+standardize:
+	@echo "⏳ Standardizing raw data…"
+	$(PY) scripts/standardize.py
+	@echo "✅ Standardization complete."
+
+build:
+	@echo "⏳ Building property‑graph pickles…"
+	$(PY) scripts/build_graphs.py
+	@echo "✅ Graphs built."
+
+export-prop:
+	@echo "⏳ Exporting property‑graphs…"
+	$(PY) scripts/export_propertyGraphs.py
+	@echo "✅ Property‑graph exports complete."
+
+export-kg:
+	@echo "⏳ Exporting knowledge‑graphs…"
+	$(PY) scripts/export_knowledgeGraphs.py
+	@echo "✅ Knowledge‑graph exports complete."
+
+mlflow-track:
+	@echo "⏳ Logging pipeline run to MLflow…"
+	$(PY) scripts/mlflow_track.py
+	@echo "✅ MLflow tracking complete."
+
+pipeline: ingest standardize build export-prop export-kg mlflow-track
+	@echo "🎉 Full pipeline complete."
+
+# ─── Optional Utilities ──────────────────────────────────────────────────
+
+sanity:
+	@echo "⚙️  Running sanity checks…"
+	$(PY) scripts/sanityCheck.py
+
+vis:
+	@echo "⚙️  Generating HTML visualizations…"
+	$(PY) scripts/visualize_pyvis.py --type all
+
+neo4j-pg:
+	@# Fail early if Neo4j creds are not set
+	@test -n "$(NEO4J_URI)$(NEO4J_USER)$(NEO4J_PW)" || (echo "❌ Error: NEO4J_* not set. source .env" >&2; exit 1)
+	@echo "⚙️  Loading property‑graphs into Neo4j…"
+	$(PY) scripts/neo4j_load_pg.py
+
+neo4j-kg:
+	@# Fail early if Neo4j creds are not set
+	@test -n "$(NEO4J_URI)$(NEO4J_USER)$(NEO4J_PW)" || (echo "❌ Error: NEO4J_* not set. source .env" >&2; exit 1)
+	@echo "⚙️  Loading TTL into Neo4j via n10s…"
+	$(PY) scripts/neo4j_load_kg.py
+
+serve:
+	@echo "⚙️  To run the KG service:"
+	@echo "    1) Ensure you're in the project root and in the '$(ENV_NAME)' env"
+	@echo "    2) If you don't have 'exports/KnowledgeGraphs/materials.ttl', run:"
+	@echo "         make export-kg-service"
+	@echo "    3) Then start the server:"
+	@echo "         make serve-server"
+	@echo
+
+serve-server:
+	@echo "🚀 Launching SPARQL & GraphQL service on http://0.0.0.0:5000 …"
+	$(PY) scripts/kg_service.py --serve
+
+export-kg-service:
+	@echo "⚙️  Generating TTL for KG service…"
+	$(PY) scripts/kg_service.py --export-kg
